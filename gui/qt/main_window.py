@@ -23,6 +23,8 @@ import os.path, json, ast, traceback
 import webbrowser
 import shutil
 import StringIO
+from Search import *
+from SearchInformation import *
 
 
 import PyQt4
@@ -136,6 +138,7 @@ class ElectrumWindow(QMainWindow):
         tabs.addTab(self.create_history_tab(), _('History') )
         tabs.addTab(self.create_send_tab(), _('Send') )
         tabs.addTab(self.create_receive_tab(), _('Receive') )
+        tabs.addTab(self.create_search_history(), _('Search History') )
         tabs.addTab(self.create_addresses_tab(), _('Addresses') )
         tabs.addTab(self.create_contacts_tab(), _('Contacts') )
         tabs.addTab(self.create_invoices_tab(), _('Invoices') )
@@ -860,7 +863,54 @@ class ElectrumWindow(QMainWindow):
         self.receive_qr.setData(url)
         if self.qr_window:
             self.qr_window.set_content(addr, amount, message, url)
+            
+    def create_search_history(self):
+        w = QWidget()
 
+        self.search_history = grid = QGridLayout(w)
+        grid.setSpacing(8)
+        grid.setColumnMinimumWidth(3,300)
+        grid.setColumnStretch(5,1)
+        grid.setRowStretch(8, 1)
+
+        from paytoedit import PayToEdit
+        self.payto_eH = PayToEdit(self)
+        self.payto_helpH = HelpButton(_('A contact of yours'))
+        grid.addWidget(QLabel(_('Search Contacts')), 1, 0)
+        grid.addWidget(self.payto_eH, 1, 1, 1, 3)
+        grid.addWidget(self.payto_helpH, 1, 4)
+
+        completer = QCompleter()
+        completer.setCaseSensitivity(False)
+        self.payto_eH.setCompleter(completer)
+        completer.setModel(self.completions)
+
+        self.search_button = EnterButton(_("Search"), self.do_search)
+        grid.addWidget(self.search_button, 6, 1)
+        w.setLayout(grid)
+
+        run_hook('create_search_history', grid)
+        return w
+
+    def do_search(self):
+        # self.history_list.clear()
+        address = self.payto_eH.parseAddressForHistory()
+        if address == None:
+            QMessageBox.warning(self, _('Error'), _('Invalid Address. Only contacts are allowed'), _('OK'))
+            return
+
+        searchInformation = SearchInformation(self.wallet, self.current_account, address)
+        search = Search(searchInformation)
+        items = search.getInformation()
+        if len(items) == 0:
+            QMessageBox.warning(self, _('Error'), _('No history to display.'), _('OK'))
+            return
+        self.show_transactionHisto(items)
+
+    def show_transactionHisto(self, tx):
+        import popUpHistory
+        d = popUpHistory.PopDialog(tx, self)
+        d.exec_()
 
     def create_send_tab(self):
         w = QWidget()
